@@ -6,7 +6,7 @@ Install script for [Arch Linux](https://wiki.archlinux.org/index.php/Arch_Linux)
 
 ```
 pacman -Syu
-pacman -S git
+pacman -S git base-devel
 git clone https://github.com/akafael/arch-install.git
 cd arch-install
 make
