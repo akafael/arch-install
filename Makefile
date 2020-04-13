@@ -20,7 +20,7 @@ MACHINE_NAME := hal
 # Rules
 ###############################################################################
 
-install: language network updatetime
+install: language network updatetime partitions installpackages fstab localization grub
 
 # Language Configurations -----------------------------------------------------
 .PHONY: language
@@ -57,7 +57,7 @@ partitions: /mnt
 # ref: https://wiki.archlinux.org/index.php/Pacman/Tips_and_tricks#Install_packages_from_a_list
 .PHONY: installpackages
 installpackages: /mnt network
-	pacstrap /mnt base linux-hardened linux-firmware base-devel vim arduino i3-wm i3status terminator git grub xorg lightdm
+	pacstrap /mnt base linux-hardened linux-firmware base-devel vim arduino i3-wm i3status terminator git grub xorg lightdm intel-ucode amd-ucode
 #	pacstrap /mnt -S --needed $(comm -12 <(pacman -Slq | sort) <(sort @<))
 #	pacman -S --needed $(comm -12 <(pacman -Slq | sort) <(sort @<))
 
@@ -81,6 +81,7 @@ timeset: /mnt
 .PHONY: localization
 localization: /mnt
 	arch-chroot /mnt sed /etc/locale.gen -i -e "s/^#\(pt_BR.*\)/\1/" -e "s/^#\(en_US.UTF-8.*\)/\1/"
+	arch-chroot /mnt locale-gen
 	arch-chroot /mnt echo "LANG=en_US.UTF-8" > /mnt/etc/locale.conf
 	arch-chroot /mnt echo "KEYMAP=br-abnt" > /mnt/etc/vconsole.conf
  
