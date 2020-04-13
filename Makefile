@@ -32,66 +32,62 @@ language:
 # Set up network through DCHP
 .PHONY: network
 network:
-	if link set ens0s0 up
+	if link set $(ip link | sed -n -e "s/2: \([a-z0-9]*\):.*/\1/p") up
 	dhclient
 
 # Enable auto update for time
 .PHONY: updatetime
 updatetime:
-	timedatectl set ntp true
-
-# Partititions ---------------------------------------------------------------
+	timedatectl set-ntp true
 
 # Partitions
-partitions:
-	mkswap /dev/sda1
-	swapon /dev/sda1
-	mkfs.ext4 /dev/sda2
-
-/mnt: partitions
-	mount /dev/sda2 /mnt
+.PHONY: partitions
+partitions: /mnt
+/mnt:
+	parted /dev/sda mklabel gpt \
+		mkpart primary ext4 1MiB 4MiB set 1 bios_grub on\
+		mkpart primary linux-swap 4MiB 4GiB set 2 swap on\
+		mkpart primary ext4 4GiB 100% set 3 boot on
+	mkswap /dev/sda2
+	swapon /dev/sda2
+	mkfs.ext4 /dev/sda3
+	mount /dev/sda3 /mnt
 
 # Install Packages -----------------------------------------------------------
 # ref: https://wiki.archlinux.org/index.php/Pacman/Tips_and_tricks#Install_packages_from_a_list
 .PHONY: installpackages
-installpackages: files/pkglist.txt
-	pacstrap /mnt base linux linux-firmware base-devel vim
-	pacstrap /mnt -S --needed $(comm -12 <(pacman -Slq | sort) <(sort @<))
+installpackages: /mnt network
+	pacstrap /mnt base linux-hardened linux-firmware base-devel vim arduino i3-wm i3status terminator git grub xorg lightdm
+#	pacstrap /mnt -S --needed $(comm -12 <(pacman -Slq | sort) <(sort @<))
 #	pacman -S --needed $(comm -12 <(pacman -Slq | sort) <(sort @<))
 
 # Install Yay Helper
-/mnt/tmp/yay:
+yay:
 	git clone https://aur.archlinux.org/yay.git /mnt/tmp/yay
 	cd /mnt/tmp/yay && makepkg -si
 
-# Configuration --------------------------------------------------------------
+# Configuration ---------------------------------------------------------------
 
 # Fstab
-/mnt/etc/fstab:
+fstab: /mnt
 	genfstab -U /mnt >> /mnt/etc/fstab
 
-# Time Zone
-/mnt/etc/localtime:
+# Time
+timeset: /mnt
 	arch-chroot /mnt ln -sf /usr/share/zoneinfo/America/Sao_Paulo /etc/localtime
-
-# Hardware Clock
-/mnt/etc/adjtime:
 	arch-chroot /mnt hwclock --systohc
 
 # Localization
-localization:
+.PHONY: localization
+localization: /mnt
 	arch-chroot /mnt sed /etc/locale.gen -i -e "s/^#\(pt_BR.*\)/\1/" -e "s/^#\(en_US.UTF-8.*\)/\1/"
-
-/mnt/etc/locale.conf:
 	arch-chroot /mnt echo "LANG=en_US.UTF-8" > /mnt/etc/locale.conf
-
+	arch-chroot /mnt echo "KEYMAP=br-abnt" > /mnt/etc/vconsole.conf
+ 
 # Grub
-grub:
+.PHONY: grub
+grub: /mnt installpackages 
 	arch-chroot /mnt grub-install --target=i386-pc /dev/sda
 	arch-chroot /mnt grub-mkconfig -o /boot/grub/grub.cfg
 
-# Lxdm + i3wm
-lxdm:
-	pacstrap /mnt lxdm i3-wm i3status
-	arch-chroot /mnt sed /etc/lxdm/lxdm.conf -i -e "s+^#\(session*\)+session=/usr/bin/i3+"
-	arch-chroot systemctl enable lxdm
+
